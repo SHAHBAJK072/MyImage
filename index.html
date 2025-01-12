@@ -1,0 +1,119 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Particle Interaction</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/controls/OrbitControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Load image as texture
+        const textureLoader = new THREE.TextureLoader();
+        const imageTexture = textureLoader.load('https://webjano.com/shahbaj/wp-content/uploads/2025/01/shahbaj-img.png', (texture) => {
+            initParticles(texture);
+        });
+
+        const particles = new THREE.BufferGeometry();
+        const particleMaterial = new THREE.PointsMaterial({ size: 3, vertexColors: true, depthWrite: false });
+
+        const mouse = new THREE.Vector2(0, 0);
+        let particleMesh;
+
+        function initParticles(texture) {
+            const positions = [];
+            const colors = [];
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = texture.image.width;
+            canvas.height = texture.image.height;
+
+            ctx.drawImage(texture.image, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            for (let y = 0; y < canvas.height; y += 4) {
+                for (let x = 0; x < canvas.width; x += 4) {
+                    const index = (y * canvas.width + x) * 4;
+                    const r = imageData.data[index];
+                    const g = imageData.data[index + 1];
+                    const b = imageData.data[index + 2];
+                    const a = imageData.data[index + 3];
+
+                    if (a > 128) {
+                        positions.push((x - canvas.width / 2) / 50, -(y - canvas.height / 2) / 50, 0);
+                        colors.push(r / 255, g / 255, b / 255);
+                    }
+                }
+            }
+
+            particles.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            particles.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            particleMesh = new THREE.Points(particles, particleMaterial);
+            scene.add(particleMesh);
+        }
+
+        function animateParticles() {
+            const positions = particles.attributes.position.array;
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const dx = mouse.x * 5 - positions[i];
+                const dy = -mouse.y * 5 - positions[i + 1];
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const maxDistance = 3;
+
+                if (distance < maxDistance) {
+                    const force = (maxDistance - distance) / maxDistance;
+                    positions[i] -= force * dx * 0.05;
+                    positions[i + 1] -= force * dy * 0.05;
+                }
+            }
+
+            particles.attributes.position.needsUpdate = true;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            animateParticles();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Camera position
+        camera.position.z = 10;
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        animate();
+    </script>
+</body>
+</html>
